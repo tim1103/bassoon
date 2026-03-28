@@ -7,12 +7,15 @@ import copy
 from typing import Dict, List, Any, Tuple
 from datetime import datetime
 
+from models.persistence import ServicePersistence
+
 
 class SchedulingService:
     """排课服务"""
     
-    def __init__(self, data_manager):
+    def __init__(self, data_manager, persistence: ServicePersistence = None):
         self.data_manager = data_manager
+        self.persistence = persistence
         self.scheduling_schemes = []
         
         # 从配置加载默认参数
@@ -28,8 +31,9 @@ class SchedulingService:
         self._load_data()
     
     def _load_data(self):
-        """加载数据"""
-        pass
+        """从持久化存储加载数据"""
+        if self.persistence:
+            self.scheduling_schemes = self.persistence.get_all_scheduling_schemes()
     
     def generate_schedules(self, config: Dict) -> Dict:
         """
@@ -72,6 +76,10 @@ class SchedulingService:
         }
         
         self.scheduling_schemes.append(scheme)
+        
+        # 持久化保存
+        if self.persistence:
+            self.persistence.save_scheduling_scheme(scheme)
         
         return {
             'success': True,

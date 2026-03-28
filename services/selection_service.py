@@ -6,12 +6,15 @@ import random
 from typing import Dict, List, Any
 from datetime import datetime
 
+from models.persistence import ServicePersistence
+
 
 class SelectionService:
     """选课服务"""
     
-    def __init__(self, data_manager):
+    def __init__(self, data_manager, persistence: ServicePersistence = None):
         self.data_manager = data_manager
+        self.persistence = persistence
         self.selection_schemes = []
         self.selections = []
         self.optimized_classes = []
@@ -20,9 +23,14 @@ class SelectionService:
         self._load_data()
     
     def _load_data(self):
-        """加载数据"""
-        # 这里可以从数据管理器加载持久化的选课方案和结果
-        pass
+        """从持久化存储加载数据"""
+        if self.persistence:
+            # 加载选课方案
+            self.selection_schemes = self.persistence.get_all_selection_schemes()
+            # 加载选课记录
+            self.selections = self.persistence.get_all_selections()
+            # 加载分班优化结果
+            self.optimized_classes = self.persistence.get_optimized_classes()
     
     def create_scheme(self, scheme: Dict) -> Dict:
         """创建选课方案"""
@@ -44,6 +52,11 @@ class SelectionService:
             }
         
         self.selection_schemes.append(scheme)
+        
+        # 持久化保存
+        if self.persistence:
+            self.persistence.save_selection_scheme(scheme)
+        
         return {'success': True, 'data': scheme}
     
     def get_all_schemes(self) -> List[Dict]:
@@ -91,6 +104,10 @@ class SelectionService:
         selection['status'] = 'pending'  # pending, confirmed, adjusted
         self.selections.append(selection)
         
+        # 持久化保存
+        if self.persistence:
+            self.persistence.save_selection(selection)
+        
         return {'success': True, 'message': '选课成功'}
     
     def get_results(self) -> List[Dict]:
@@ -134,6 +151,10 @@ class SelectionService:
             })
         
         self.optimized_classes = optimized_result
+        
+        # 持久化保存
+        if self.persistence:
+            self.persistence.save_optimized_classes(optimized_result)
         
         return {
             'success': True,

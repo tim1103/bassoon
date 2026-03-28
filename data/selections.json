@@ -1,1 +1,24 @@
-[]
+[
+  {
+    "id": 999,
+    "student_id": 1,
+    "scheme_id": 999,
+    "subjects": [
+      "物理",
+      "化学",
+      "生物"
+    ],
+    "submitted_at": "2024-01-01T00:00:00"
+  },
+  {
+    "id": 999,
+    "student_id": 1,
+    "scheme_id": 999,
+    "subjects": [
+      "物理",
+      "化学",
+      "生物"
+    ],
+    "submitted_at": "2024-01-01T00:00:00"
+  }
+]
