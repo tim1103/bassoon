@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}浙江省新高考选课排课系统{% endblock %}</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    {% block extra_css %}{% endblock %}
+</head>
+<body>
+    <nav class="navbar">
+        <div class="nav-brand">浙江省新高考选课排课系统</div>
+        <ul class="nav-menu">
+            <li><a href="/">首页</a></li>
+            <li><a href="/data">基础数据</a></li>
+            <li><a href="/selection">选课管理</a></li>
+            <li><a href="/scheduling">排课管理</a></li>
+            <li><a href="/query">查询统计</a></li>
+        </ul>
+    </nav>
+
+    <main class="container">
+        {% block content %}{% endblock %}
+    </main>
+
+    <footer class="footer">
+        <p>&copy; 2024 浙江省新高考选课排课系统</p>
+    </footer>
+
+    <script src="{{ url_for('static', filename='js/main.js') }}"></script>
+    {% block extra_js %}{% endblock %}
+</body>
+</html>

@@ -1,0 +1,87 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="dashboard">
+    <h1>系统首页</h1>
+    
+    <div class="stats-grid">
+        <div class="stat-card">
+            <h3>校区数量</h3>
+            <p class="stat-number" id="campus-count">-</p>
+        </div>
+        <div class="stat-card">
+            <h3>班级数量</h3>
+            <p class="stat-number" id="class-count">-</p>
+        </div>
+        <div class="stat-card">
+            <h3>教师数量</h3>
+            <p class="stat-number" id="teacher-count">-</p>
+        </div>
+        <div class="stat-card">
+            <h3>学生数量</h3>
+            <p class="stat-number" id="student-count">-</p>
+        </div>
+        <div class="stat-card">
+            <h3>教室数量</h3>
+            <p class="stat-number" id="classroom-count">-</p>
+        </div>
+        <div class="stat-card">
+            <h3>课程数量</h3>
+            <p class="stat-number" id="course-count">-</p>
+        </div>
+    </div>
+
+    <div class="quick-actions">
+        <h2>快速操作</h2>
+        <div class="action-buttons">
+            <button class="btn btn-primary" onclick="location.href='/data?type=teachers'">管理教师</button>
+            <button class="btn btn-primary" onclick="location.href='/data?type=students'">管理学生</button>
+            <button class="btn btn-primary" onclick="location.href='/data?type=classes'">管理班级</button>
+            <button class="btn btn-success" onclick="location.href='/selection'">创建选课方案</button>
+            <button class="btn btn-success" onclick="location.href='/scheduling'">生成课表</button>
+            <button class="btn btn-info" onclick="location.href='/query'">查看统计</button>
+        </div>
+    </div>
+
+    <div class="system-info">
+        <h2>系统说明</h2>
+        <div class="info-content">
+            <h3>功能模块</h3>
+            <ul>
+                <li><strong>基础数据管理：</strong>支持校区、班级、教师、学生、教室信息的维护和 Excel 批量导入导出</li>
+                <li><strong>选课管理：</strong>支持选课方案制定、学生预选、结果确认、分班优化（成绩均衡、男女均衡）</li>
+                <li><strong>排课管理：</strong>支持行政班/教学班排课、自动规避冲突、生成多套方案</li>
+                <li><strong>查询统计：</strong>支持学生/教师/班级/教室课表查询和各类统计报表</li>
+            </ul>
+
+            <h3>使用流程</h3>
+            <ol>
+                <li>导入或录入基础数据（校区、班级、教师、学生、教室）</li>
+                <li>创建选课方案，设置选科规则（7 选 3）</li>
+                <li>学生提交选课志愿</li>
+                <li>执行分班优化</li>
+                <li>生成课表（可生成多套方案供选择）</li>
+                <li>查询和导出各类课表</li>
+            </ol>
+        </div>
+    </div>
+</div>
+
+<script>
+    // 加载统计数据
+    fetch('/api/stats/overview')
+        .then(response => response.json())
+        .then(result => {
+            if (result.success) {
+                const data = result.data;
+                document.getElementById('campus-count').textContent = data.campuses || 0;
+                document.getElementById('class-count').textContent = data.classes || 0;
+                document.getElementById('teacher-count').textContent = data.teachers || 0;
+                document.getElementById('student-count').textContent = data.students || 0;
+                document.getElementById('classroom-count').textContent = data.classrooms || 0;
+                document.getElementById('course-count').textContent = data.courses || 0;
+            }
+        })
+        .catch(error => console.error('Error:', error));
+</script>
+{% endblock %}

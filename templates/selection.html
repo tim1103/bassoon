@@ -1,0 +1,311 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="selection-management">
+    <h1>选课管理</h1>
+
+    <div class="section">
+        <h2>选课方案</h2>
+        <button class="btn btn-primary" onclick="showCreateSchemeModal()">创建方案</button>
+        
+        <div class="card-list" id="scheme-list"></div>
+    </div>
+
+    <div class="section">
+        <h2>学生选课</h2>
+        <div class="toolbar">
+            <button class="btn btn-success" onclick="showSubmitSelectionModal()">学生提交选课</button>
+            <button class="btn btn-info" onclick="loadSelectionResults()">查看选课结果</button>
+        </div>
+        
+        <div class="data-table-container">
+            <table class="data-table" id="selection-table">
+                <thead>
+                    <tr>
+                        <th>学生</th>
+                        <th>选科组合</th>
+                        <th>提交时间</th>
+                        <th>状态</th>
+                    </tr>
+                </thead>
+                <tbody id="selection-body"></tbody>
+            </table>
+        </div>
+    </div>
+
+    <div class="section">
+        <h2>分班优化</h2>
+        <div class="optimization-config">
+            <div class="form-group">
+                <label>最大班级人数：</label>
+                <input type="number" id="max-students" value="50" min="20" max="80">
+            </div>
+            <div class="form-group">
+                <label>最小班级人数：</label>
+                <input type="number" id="min-students" value="20" min="10" max="40">
+            </div>
+            <div class="form-group">
+                <label>
+                    <input type="checkbox" id="gender-balance" checked> 男女均衡
+                </label>
+            </div>
+            <div class="form-group">
+                <label>
+                    <input type="checkbox" id="score-balance" checked> 成绩均衡
+                </label>
+            </div>
+            <div class="form-group">
+                <label>
+                    <input type="checkbox" id="admin-class-concentrate" checked> 行政班集中
+                </label>
+            </div>
+        </div>
+        <button class="btn btn-success" onclick="runOptimization()">执行分班优化</button>
+        
+        <div id="optimization-result" class="result-box"></div>
+    </div>
+</div>
+
+<!-- 创建方案模态框 -->
+<div id="scheme-modal" class="modal">
+    <div class="modal-content">
+        <span class="close" onclick="closeSchemeModal()">&times;</span>
+        <h2>创建选课方案</h2>
+        <form id="scheme-form">
+            <div class="form-group">
+                <label>方案名称*</label>
+                <input type="text" name="name" required>
+            </div>
+            <div class="form-group">
+                <label>适用年级</label>
+                <input type="text" name="grade" placeholder="如：高一">
+            </div>
+            <div class="form-group">
+                <label>说明</label>
+                <textarea name="description" rows="3"></textarea>
+            </div>
+            <div class="form-actions">
+                <button type="submit" class="btn btn-primary">创建</button>
+                <button type="button" class="btn" onclick="closeSchemeModal()">取消</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- 提交选课模态框 -->
+<div id="selection-modal" class="modal">
+    <div class="modal-content">
+        <span class="close" onclick="closeSelectionModal()">&times;</span>
+        <h2>学生提交选课</h2>
+        <form id="selection-form">
+            <div class="form-group">
+                <label>学生 ID*</label>
+                <input type="number" name="student_id" required>
+            </div>
+            <div class="form-group">
+                <label>选课方案*</label>
+                <select name="scheme_id" id="scheme-select" required>
+                    <option value="">请选择方案</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label>选择科目（7 选 3）*</label>
+                <div class="checkbox-group">
+                    <label><input type="checkbox" name="subjects" value="物理"> 物理</label>
+                    <label><input type="checkbox" name="subjects" value="化学"> 化学</label>
+                    <label><input type="checkbox" name="subjects" value="生物"> 生物</label>
+                    <label><input type="checkbox" name="subjects" value="政治"> 政治</label>
+                    <label><input type="checkbox" name="subjects" value="历史"> 历史</label>
+                    <label><input type="checkbox" name="subjects" value="地理"> 地理</label>
+                    <label><input type="checkbox" name="subjects" value="技术"> 技术</label>
+                </div>
+            </div>
+            <div class="form-actions">
+                <button type="submit" class="btn btn-primary">提交</button>
+                <button type="button" class="btn" onclick="closeSelectionModal()">取消</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<script>
+    // 加载方案列表
+    function loadSchemes() {
+        fetch('/api/selection/schemes')
+            .then(response => response.json())
+            .then(result => {
+                if (result.success) {
+                    renderSchemes(result.data);
+                }
+            });
+    }
+
+    function renderSchemes(schemes) {
+        const container = document.getElementById('scheme-list');
+        if (!schemes || schemes.length === 0) {
+            container.innerHTML = '<p>暂无方案</p>';
+            return;
+        }
+
+        container.innerHTML = schemes.map(scheme => `
+            <div class="card">
+                <h3>${scheme.name}</h3>
+                <p>年级：${scheme.grade || '未指定'}</p>
+                <p>说明：${scheme.description || '无'}</p>
+                <p>状态：<span class="status-${scheme.status}">${scheme.status}</span></p>
+                <p>创建时间：${new Date(scheme.created_at).toLocaleString()}</p>
+            </div>
+        `).join('');
+
+        // 更新方案选择下拉框
+        const select = document.getElementById('scheme-select');
+        select.innerHTML = '<option value="">请选择方案</option>' +
+            schemes.map(s => `<option value="${s.id}">${s.name}</option>`).join('');
+    }
+
+    function showCreateSchemeModal() {
+        document.getElementById('scheme-modal').style.display = 'block';
+    }
+
+    function closeSchemeModal() {
+        document.getElementById('scheme-modal').style.display = 'none';
+    }
+
+    document.getElementById('scheme-form').addEventListener('submit', (e) => {
+        e.preventDefault();
+        const formData = new FormData(e.target);
+        const data = Object.fromEntries(formData);
+
+        fetch('/api/selection/scheme', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify(data)
+        })
+        .then(response => response.json())
+        .then(result => {
+            if (result.success) {
+                alert('方案创建成功');
+                closeSchemeModal();
+                loadSchemes();
+            } else {
+                alert('创建失败：' + result.message);
+            }
+        });
+    });
+
+    function showSubmitSelectionModal() {
+        document.getElementById('selection-modal').style.display = 'block';
+    }
+
+    function closeSelectionModal() {
+        document.getElementById('selection-modal').style.display = 'none';
+    }
+
+    document.getElementById('selection-form').addEventListener('submit', (e) => {
+        e.preventDefault();
+        const formData = new FormData(e.target);
+        
+        // 获取选中的科目
+        const subjects = [];
+        formData.getAll('subjects').forEach(subject => {
+            subjects.push(subject);
+        });
+
+        if (subjects.length !== 3) {
+            alert('必须且只能选择 3 门科目');
+            return;
+        }
+
+        const data = {
+            student_id: parseInt(formData.get('student_id')),
+            scheme_id: parseInt(formData.get('scheme_id')),
+            subjects: subjects
+        };
+
+        fetch('/api/selection/submit', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify(data)
+        })
+        .then(response => response.json())
+        .then(result => {
+            if (result.success) {
+                alert('选课成功');
+                closeSelectionModal();
+                loadSelectionResults();
+            } else {
+                alert('选课失败：' + result.message);
+            }
+        });
+    });
+
+    function loadSelectionResults() {
+        fetch('/api/selection/results')
+            .then(response => response.json())
+            .then(result => {
+                if (result.success) {
+                    const tbody = document.getElementById('selection-body');
+                    if (!result.data || result.data.length === 0) {
+                        tbody.innerHTML = '<tr><td colspan="4">暂无选课记录</td></tr>';
+                        return;
+                    }
+
+                    tbody.innerHTML = result.data.map(sel => `
+                        <tr>
+                            <td>${sel.student_id}</td>
+                            <td>${sel.subjects ? sel.subjects.join(', ') : ''}</td>
+                            <td>${new Date(sel.submitted_at).toLocaleString()}</td>
+                            <td>${sel.status}</td>
+                        </tr>
+                    `).join('');
+                }
+            });
+    }
+
+    function runOptimization() {
+        const config = {
+            max_students: parseInt(document.getElementById('max-students').value),
+            min_students: parseInt(document.getElementById('min-students').value),
+            gender_balance: document.getElementById('gender-balance').checked,
+            score_balance: document.getElementById('score-balance').checked,
+            admin_class_concentrate: document.getElementById('admin-class-concentrate').checked
+        };
+
+        fetch('/api/selection/optimize', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify(config)
+        })
+        .then(response => response.json())
+        .then(result => {
+            const resultBox = document.getElementById('optimization-result');
+            if (result.success) {
+                let html = `<h3>优化成功</h3><p>${result.message}</p>`;
+                if (result.data) {
+                    result.data.forEach(group => {
+                        html += `
+                            <div class="result-card">
+                                <h4>选科组合：${group.subjects.join(', ')}</h4>
+                                <p>学生总数：${group.total_students}</p>
+                                <ul>
+                                    ${group.classes.map(c => `
+                                        <li>教学${c.class_id}班：${c.student_count}人 
+                                            (男${c.male_count}/女${c.female_count}, 
+                                            均分${c.avg_score})</li>
+                                    `).join('')}
+                                </ul>
+                            </div>
+                        `;
+                    });
+                }
+                resultBox.innerHTML = html;
+            } else {
+                resultBox.innerHTML = `<p class="error">${result.message}</p>`;
+            }
+        });
+    }
+
+    // 初始化
+    loadSchemes();
+</script>
+{% endblock %}

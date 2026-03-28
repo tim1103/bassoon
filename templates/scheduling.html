@@ -1,0 +1,201 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="scheduling-management">
+    <h1>排课管理</h1>
+
+    <div class="section">
+        <h2>生成课表</h2>
+        <div class="config-form">
+            <div class="form-group">
+                <label>方案名称</label>
+                <input type="text" id="scheme-name" placeholder="如：2024 秋季学期课表">
+            </div>
+            <div class="form-group">
+                <label>每天课时数</label>
+                <input type="number" id="time-slots-per-day" value="8" min="4" max="12">
+            </div>
+            <div class="form-group">
+                <label>每周天数</label>
+                <input type="number" id="days-per-week" value="5" min="5" max="7">
+            </div>
+            <div class="form-group">
+                <label>最大迭代次数</label>
+                <input type="number" id="max-iterations" value="1000" min="100" max="5000">
+            </div>
+            <div class="form-group">
+                <label>种群大小</label>
+                <input type="number" id="population-size" value="50" min="10" max="200">
+            </div>
+        </div>
+        <button class="btn btn-success" onclick="generateSchedule()">开始排课</button>
+        
+        <div id="generating-status" class="status-box" style="display:none;">
+            <p>正在生成课表，请稍候...</p>
+            <div class="progress-bar">
+                <div class="progress"></div>
+            </div>
+        </div>
+    </div>
+
+    <div class="section">
+        <h2>排课方案列表</h2>
+        <div class="card-list" id="scheme-list"></div>
+    </div>
+
+    <div class="section">
+        <h2>查看课表</h2>
+        <div class="toolbar">
+            <select id="timetable-type">
+                <option value="student">学生课表</option>
+                <option value="teacher">教师课表</option>
+                <option value="class">班级课表</option>
+                <option value="classroom">教室课表</option>
+            </select>
+            <input type="number" id="timetable-id" placeholder="输入 ID" min="1">
+            <button class="btn btn-primary" onclick="loadTimetable()">查询</button>
+        </div>
+        
+        <div id="timetable-container" class="timetable-container"></div>
+    </div>
+</div>
+
+<script>
+    // 加载方案列表
+    function loadSchemes() {
+        fetch('/api/scheduling/schemes')
+            .then(response => response.json())
+            .then(result => {
+                if (result.success) {
+                    renderSchemes(result.data);
+                }
+            });
+    }
+
+    function renderSchemes(schemes) {
+        const container = document.getElementById('scheme-list');
+        if (!schemes || schemes.length === 0) {
+            container.innerHTML = '<p>暂无排课方案</p>';
+            return;
+        }
+
+        container.innerHTML = schemes.map(scheme => `
+            <div class="card">
+                <h3>${scheme.name}</h3>
+                <p>适应度分数：${scheme.fitness ? scheme.fitness.toFixed(2) : 'N/A'}</p>
+                <p>状态：${scheme.status}</p>
+                <p>创建时间：${new Date(scheme.created_at).toLocaleString()}</p>
+                <button class="btn btn-sm" onclick="viewScheme(${scheme.id})">查看详情</button>
+            </div>
+        `).join('');
+    }
+
+    function generateSchedule() {
+        const config = {
+            scheme_name: document.getElementById('scheme-name').value || '新课表',
+            time_slots_per_day: parseInt(document.getElementById('time-slots-per-day').value),
+            days_per_week: parseInt(document.getElementById('days-per-week').value),
+            max_iterations: parseInt(document.getElementById('max-iterations').value),
+            population_size: parseInt(document.getElementById('population-size').value)
+        };
+
+        document.getElementById('generating-status').style.display = 'block';
+
+        fetch('/api/scheduling/generate', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify(config)
+        })
+        .then(response => response.json())
+        .then(result => {
+            document.getElementById('generating-status').style.display = 'none';
+            if (result.success) {
+                alert('课表生成成功！');
+                loadSchemes();
+            } else {
+                alert('生成失败：' + result.message);
+            }
+        })
+        .catch(error => {
+            document.getElementById('generating-status').style.display = 'none';
+            alert('生成失败：' + error.message);
+        });
+    }
+
+    function viewScheme(schemeId) {
+        fetch(`/api/scheduling/scheme/${schemeId}`)
+            .then(response => response.json())
+            .then(result => {
+                if (result.success && result.data) {
+                    console.log(result.data);
+                    alert('方案详情已加载，请查看控制台或实现详细展示页面');
+                }
+            });
+    }
+
+    function loadTimetable() {
+        const type = document.getElementById('timetable-type').value;
+        const id = document.getElementById('timetable-id').value;
+
+        if (!id) {
+            alert('请输入 ID');
+            return;
+        }
+
+        fetch(`/api/scheduling/timetable?type=${type}&id=${id}`)
+            .then(response => response.json())
+            .then(result => {
+                if (result.success) {
+                    renderTimetable(result.data, type);
+                } else {
+                    document.getElementById('timetable-container').innerHTML = 
+                        '<p class="error">' + result.message + '</p>';
+                }
+            });
+    }
+
+    function renderTimetable(data, type) {
+        const container = document.getElementById('timetable-container');
+        const timetable = data.timetable;
+
+        if (!timetable || Object.keys(timetable).length === 0) {
+            container.innerHTML = '<p>该对象暂无课表</p>';
+            return;
+        }
+
+        let html = '<table class="timetable"><thead><tr><th>节次</th>';
+        
+        // 表头（星期）
+        const days = ['周一', '周二', '周三', '周四', '周五'];
+        days.forEach(day => html += `<th>${day}</th>`);
+        html += '</tr></thead><tbody>';
+
+        // 课程节次（假设每天 8 节课）
+        for (let slot = 1; slot <= 8; slot++) {
+            html += `<tr><td>第${slot}节</td>`;
+            
+            days.forEach((day, dayIndex) => {
+                const dayData = timetable[day];
+                if (dayData && dayData[slot]) {
+                    const course = dayData[slot];
+                    html += `<td class="course-cell">
+                        <div><strong>${course.course}</strong></div>
+                        ${course.teacher ? `<div>${course.teacher}</div>` : ''}
+                        ${course.room ? `<div>${course.room}</div>` : ''}
+                    </td>`;
+                } else {
+                    html += '<td></td>';
+                }
+            });
+            
+            html += '</tr>';
+        }
+
+        html += '</tbody></table>';
+        container.innerHTML = html;
+    }
+
+    // 初始化
+    loadSchemes();
+</script>
+{% endblock %}

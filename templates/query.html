@@ -1,0 +1,229 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="query-statistics">
+    <h1>查询统计</h1>
+
+    <div class="section">
+        <h2>数据概览</h2>
+        <div class="stats-grid">
+            <div class="stat-card">
+                <h3>校区数量</h3>
+                <p class="stat-number" id="campus-count">-</p>
+            </div>
+            <div class="stat-card">
+                <h3>班级数量</h3>
+                <p class="stat-number" id="class-count">-</p>
+            </div>
+            <div class="stat-card">
+                <h3>教师数量</h3>
+                <p class="stat-number" id="teacher-count">-</p>
+            </div>
+            <div class="stat-card">
+                <h3>学生数量</h3>
+                <p class="stat-number" id="student-count">-</p>
+            </div>
+            <div class="stat-card">
+                <h3>教室数量</h3>
+                <p class="stat-number" id="classroom-count">-</p>
+            </div>
+            <div class="stat-card">
+                <h3>课程数量</h3>
+                <p class="stat-number" id="course-count">-</p>
+            </div>
+        </div>
+    </div>
+
+    <div class="section">
+        <h2>选课统计</h2>
+        <button class="btn btn-primary" onclick="loadSelectionStats()">刷新统计</button>
+        
+        <div class="chart-container">
+            <h3>各科目选课人数</h3>
+            <div id="subject-stats" class="bar-chart"></div>
+        </div>
+        
+        <div class="chart-container">
+            <h3>选科组合分布</h3>
+            <div id="combination-stats" class="data-table-container"></div>
+        </div>
+    </div>
+
+    <div class="section">
+        <h2>课表查询</h2>
+        <div class="toolbar">
+            <select id="query-type">
+                <option value="student">按学生查询</option>
+                <option value="teacher">按教师查询</option>
+                <option value="class">按班级查询</option>
+                <option value="classroom">按教室查询</option>
+            </select>
+            <input type="number" id="query-id" placeholder="输入 ID" min="1">
+            <button class="btn btn-primary" onclick="queryTimetable()">查询</button>
+        </div>
+        
+        <div id="query-result" class="timetable-container"></div>
+    </div>
+
+    <div class="section">
+        <h2>数据导出</h2>
+        <div class="export-buttons">
+            <button class="btn btn-success" onclick="exportData('teachers')">导出教师数据</button>
+            <button class="btn btn-success" onclick="exportData('students')">导出学生数据</button>
+            <button class="btn btn-success" onclick="exportData('classes')">导出班级数据</button>
+            <button class="btn btn-success" onclick="exportData('classrooms')">导出教室数据</button>
+            <button class="btn btn-success" onclick="exportData('courses')">导出课程数据</button>
+        </div>
+    </div>
+</div>
+
+<script>
+    // 加载统计数据
+    function loadOverviewStats() {
+        fetch('/api/stats/overview')
+            .then(response => response.json())
+            .then(result => {
+                if (result.success) {
+                    const data = result.data;
+                    document.getElementById('campus-count').textContent = data.campuses || 0;
+                    document.getElementById('class-count').textContent = data.classes || 0;
+                    document.getElementById('teacher-count').textContent = data.teachers || 0;
+                    document.getElementById('student-count').textContent = data.students || 0;
+                    document.getElementById('classroom-count').textContent = data.classrooms || 0;
+                    document.getElementById('course-count').textContent = data.courses || 0;
+                }
+            });
+    }
+
+    // 加载选课统计
+    function loadSelectionStats() {
+        fetch('/api/stats/selection')
+            .then(response => response.json())
+            .then(result => {
+                if (result.success) {
+                    renderSubjectStats(result.data.by_subject);
+                    renderCombinationStats(result.data.by_combination);
+                }
+            });
+    }
+
+    function renderSubjectStats(subjectData) {
+        const container = document.getElementById('subject-stats');
+        if (!subjectData || Object.keys(subjectData).length === 0) {
+            container.innerHTML = '<p>暂无选课数据</p>';
+            return;
+        }
+
+        const maxCount = Math.max(...Object.values(subjectData));
+        
+        let html = '<div class="bars">';
+        for (const [subject, count] of Object.entries(subjectData)) {
+            const width = (count / maxCount) * 100;
+            html += `
+                <div class="bar-item">
+                    <div class="bar-label">${subject}</div>
+                    <div class="bar" style="width: ${width}%">${count}</div>
+                </div>
+            `;
+        }
+        html += '</div>';
+        container.innerHTML = html;
+    }
+
+    function renderCombinationStats(comboData) {
+        const container = document.getElementById('combination-stats');
+        if (!comboData || Object.keys(comboData).length === 0) {
+            container.innerHTML = '<p>暂无组合数据</p>';
+            return;
+        }
+
+        let html = '<table class="data-table"><thead><tr><th>选科组合</th><th>人数</th></tr></thead><tbody>';
+        
+        const sortedCombos = Object.entries(comboData).sort((a, b) => b[1] - a[1]);
+        
+        for (const [combo, count] of sortedCombos) {
+            html += `<tr><td>${combo}</td><td>${count}</td></tr>`;
+        }
+        
+        html += '</tbody></table>';
+        container.innerHTML = html;
+    }
+
+    // 查询课表
+    function queryTimetable() {
+        const type = document.getElementById('query-type').value;
+        const id = document.getElementById('query-id').value;
+
+        if (!id) {
+            alert('请输入 ID');
+            return;
+        }
+
+        fetch(`/api/scheduling/timetable?type=${type}&id=${id}`)
+            .then(response => response.json())
+            .then(result => {
+                if (result.success) {
+                    renderQueryResult(result.data, type, id);
+                } else {
+                    document.getElementById('query-result').innerHTML = 
+                        '<p class="error">' + result.message + '</p>';
+                }
+            });
+    }
+
+    function renderQueryResult(data, type, id) {
+        const container = document.getElementById('query-result');
+        const timetable = data.timetable;
+
+        let title = '';
+        if (type === 'student') title = `学生${id}课表`;
+        else if (type === 'teacher') title = `教师${id}课表`;
+        else if (type === 'class') title = `班级${id}课表`;
+        else if (type === 'classroom') title = `教室${id}课表`;
+
+        if (!timetable || Object.keys(timetable).length === 0) {
+            container.innerHTML = `<p>${title}：暂无课表</p>`;
+            return;
+        }
+
+        let html = `<h3>${title}</h3>`;
+        html += '<table class="timetable"><thead><tr><th>节次</th>';
+        
+        const days = ['周一', '周二', '周三', '周四', '周五'];
+        days.forEach(day => html += `<th>${day}</th>`);
+        html += '</tr></thead><tbody>';
+
+        for (let slot = 1; slot <= 8; slot++) {
+            html += `<tr><td>第${slot}节</td>`;
+            
+            days.forEach((day, dayIndex) => {
+                const dayData = timetable[day];
+                if (dayData && dayData[slot]) {
+                    const course = dayData[slot];
+                    html += `<td class="course-cell">
+                        <div><strong>${course.course}</strong></div>
+                        ${course.teacher ? `<div>${course.teacher}</div>` : ''}
+                        ${course.room ? `<div>${course.room}</div>` : ''}
+                    </td>`;
+                } else {
+                    html += '<td></td>';
+                }
+            });
+            
+            html += '</tr>';
+        }
+
+        html += '</tbody></table>';
+        container.innerHTML = html;
+    }
+
+    // 导出数据
+    function exportData(type) {
+        window.location.href = `/api/export/${type}`;
+    }
+
+    // 初始化
+    loadOverviewStats();
+    loadSelectionStats();
+</script>
+{% endblock %}

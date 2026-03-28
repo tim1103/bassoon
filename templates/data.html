@@ -1,0 +1,303 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="data-management">
+    <h1>基础数据管理</h1>
+
+    <div class="tabs">
+        <button class="tab-btn active" data-type="campuses">校区</button>
+        <button class="tab-btn" data-type="classes">班级</button>
+        <button class="tab-btn" data-type="teachers">教师</button>
+        <button class="tab-btn" data-type="students">学生</button>
+        <button class="tab-btn" data-type="classrooms">教室</button>
+    </div>
+
+    <div class="toolbar">
+        <button class="btn btn-primary" onclick="showAddModal()">新增</button>
+        <button class="btn btn-success" onclick="showImportModal()">导入 Excel</button>
+        <button class="btn btn-info" onclick="exportData()">导出 Excel</button>
+    </div>
+
+    <div class="data-table-container">
+        <table class="data-table" id="data-table">
+            <thead>
+                <tr id="table-header"></tr>
+            </thead>
+            <tbody id="table-body"></tbody>
+        </table>
+    </div>
+</div>
+
+<!-- 新增/编辑模态框 -->
+<div id="modal" class="modal">
+    <div class="modal-content">
+        <span class="close" onclick="closeModal()">&times;</span>
+        <h2 id="modal-title">新增</h2>
+        <form id="data-form">
+            <div id="form-fields"></div>
+            <div class="form-actions">
+                <button type="submit" class="btn btn-primary">保存</button>
+                <button type="button" class="btn" onclick="closeModal()">取消</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- 导入模态框 -->
+<div id="import-modal" class="modal">
+    <div class="modal-content">
+        <span class="close" onclick="closeImportModal()">&times;</span>
+        <h2>导入 Excel 数据</h2>
+        <form id="import-form" enctype="multipart/form-data">
+            <div class="form-group">
+                <label>选择文件：</label>
+                <input type="file" name="file" accept=".xlsx,.xls" required>
+            </div>
+            <div class="form-actions">
+                <button type="submit" class="btn btn-primary">导入</button>
+                <button type="button" class="btn" onclick="closeImportModal()">取消</button>
+            </div>
+        </form>
+        <div id="import-result"></div>
+    </div>
+</div>
+
+<script>
+    let currentType = 'campuses';
+    let editingId = null;
+
+    const fieldConfigs = {
+        campuses: [
+            {name: 'name', label: '校区名称', type: 'text', required: true},
+            {name: 'address', label: '地址', type: 'text'},
+            {name: 'remark', label: '备注', type: 'textarea'}
+        ],
+        classes: [
+            {name: 'name', label: '班级名称', type: 'text', required: true},
+            {name: 'grade', label: '年级', type: 'text'},
+            {name: 'type', label: '类型', type: 'select', options: ['行政班', '教学班']},
+            {name: 'head_teacher', label: '班主任', type: 'text'},
+            {name: 'student_count', label: '学生人数', type: 'number'},
+            {name: 'remark', label: '备注', type: 'textarea'}
+        ],
+        teachers: [
+            {name: 'name', label: '姓名', type: 'text', required: true},
+            {name: 'gender', label: '性别', type: 'select', options: ['男', '女']},
+            {name: 'education', label: '学历', type: 'text'},
+            {name: 'title', label: '职称', type: 'text'},
+            {name: 'phone', label: '手机号', type: 'text'},
+            {name: 'email', label: '邮箱', type: 'email'},
+            {name: 'subjects', label: '任教学科', type: 'text'},
+            {name: 'remark', label: '备注', type: 'textarea'}
+        ],
+        students: [
+            {name: 'student_id', label: '学号', type: 'text', required: true},
+            {name: 'name', label: '姓名', type: 'text', required: true},
+            {name: 'gender', label: '性别', type: 'select', options: ['男', '女']},
+            {name: 'admin_class', label: '行政班', type: 'text'},
+            {name: 'phone', label: '联系电话', type: 'text'},
+            {name: 'remark', label: '备注', type: 'textarea'}
+        ],
+        classrooms: [
+            {name: 'code', label: '教室编号', type: 'text', required: true},
+            {name: 'name', label: '教室名称', type: 'text'},
+            {name: 'type', label: '类型', type: 'select', options: ['普通教室', '实验室', '机房', '体育馆', '其他']},
+            {name: 'capacity', label: '容量', type: 'number'},
+            {name: 'floor', label: '所在楼层', type: 'text'},
+            {name: 'remark', label: '备注', type: 'textarea'}
+        ]
+    };
+
+    // 切换标签页
+    document.querySelectorAll('.tab-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+            document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+            btn.classList.add('active');
+            currentType = btn.dataset.type;
+            loadData();
+        });
+    });
+
+    // 加载数据
+    function loadData() {
+        fetch(`/api/${currentType}`)
+            .then(response => response.json())
+            .then(result => {
+                if (result.success) {
+                    renderTable(result.data);
+                }
+            });
+    }
+
+    // 渲染表格
+    function renderTable(data) {
+        const headerRow = document.getElementById('table-header');
+        const tbody = document.getElementById('table-body');
+        
+        if (!data || data.length === 0) {
+            headerRow.innerHTML = '<th>暂无数据</th>';
+            tbody.innerHTML = '';
+            return;
+        }
+
+        // 表头
+        const fields = Object.keys(data[0]).filter(k => k !== 'id' && k !== 'created_at' && k !== 'updated_at');
+        headerRow.innerHTML = fields.map(f => `<th>${f}</th>`).join('') + '<th>操作</th>';
+
+        // 表体
+        tbody.innerHTML = data.map(item => 
+            `<tr>
+                ${fields.map(f => `<td>${item[f] || ''}</td>`).join('')}
+                <td>
+                    <button class="btn btn-sm" onclick="editItem(${item.id})">编辑</button>
+                    <button class="btn btn-sm btn-danger" onclick="deleteItem(${item.id})">删除</button>
+                </td>
+            </tr>`
+        ).join('');
+    }
+
+    // 显示新增模态框
+    function showAddModal() {
+        editingId = null;
+        document.getElementById('modal-title').textContent = '新增';
+        renderFormFields();
+        document.getElementById('modal').style.display = 'block';
+    }
+
+    // 编辑
+    function editItem(id) {
+        editingId = id;
+        document.getElementById('modal-title').textContent = '编辑';
+        
+        fetch(`/api/${currentType}/${id}`)
+            .then(response => response.json())
+            .then(result => {
+                if (result.success) {
+                    renderFormFields(result.data);
+                    document.getElementById('modal').style.display = 'block';
+                }
+            });
+    }
+
+    // 渲染表单字段
+    function renderFormFields(data = {}) {
+        const container = document.getElementById('form-fields');
+        const fields = fieldConfigs[currentType];
+        
+        container.innerHTML = fields.map(field => {
+            let input;
+            if (field.type === 'select') {
+                input = `<select name="${field.name}" ${field.required ? 'required' : ''}>
+                    <option value="">请选择</option>
+                    ${field.options.map(opt => 
+                        `<option value="${opt}" ${data[field.name] === opt ? 'selected' : ''}>${opt}</option>`
+                    ).join('')}
+                </select>`;
+            } else if (field.type === 'textarea') {
+                input = `<textarea name="${field.name}" rows="3">${data[field.name] || ''}</textarea>`;
+            } else {
+                input = `<input type="${field.type}" name="${field.name}" value="${data[field.name] || ''}" ${field.required ? 'required' : ''}>`;
+            }
+            
+            return `
+                <div class="form-group">
+                    <label>${field.label}${field.required ? '*' : ''}</label>
+                    ${input}
+                </div>
+            `;
+        }).join('');
+    }
+
+    // 关闭模态框
+    function closeModal() {
+        document.getElementById('modal').style.display = 'none';
+    }
+
+    // 表单提交
+    document.getElementById('data-form').addEventListener('submit', (e) => {
+        e.preventDefault();
+        
+        const formData = new FormData(e.target);
+        const data = Object.fromEntries(formData);
+        
+        const url = editingId ? `/api/${currentType}/${editingId}` : `/api/${currentType}`;
+        const method = editingId ? 'PUT' : 'POST';
+        
+        fetch(url, {
+            method: method,
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify(data)
+        })
+        .then(response => response.json())
+        .then(result => {
+            if (result.success) {
+                alert('保存成功');
+                closeModal();
+                loadData();
+            } else {
+                alert('保存失败：' + result.message);
+            }
+        });
+    });
+
+    // 删除
+    function deleteItem(id) {
+        if (!confirm('确定要删除吗？')) return;
+        
+        fetch(`/api/${currentType}/${id}`, {method: 'DELETE'})
+            .then(response => response.json())
+            .then(result => {
+                if (result.success) {
+                    alert('删除成功');
+                    loadData();
+                } else {
+                    alert('删除失败：' + result.message);
+                }
+            });
+    }
+
+    // 导入
+    function showImportModal() {
+        document.getElementById('import-modal').style.display = 'block';
+    }
+
+    function closeImportModal() {
+        document.getElementById('import-modal').style.display = 'none';
+    }
+
+    document.getElementById('import-form').addEventListener('submit', (e) => {
+        e.preventDefault();
+        
+        const formData = new FormData(e.target);
+        
+        fetch(`/api/import/${currentType}`, {
+            method: 'POST',
+            body: formData
+        })
+        .then(response => response.json())
+        .then(result => {
+            const resultDiv = document.getElementById('import-result');
+            if (result.success) {
+                resultDiv.innerHTML = `<p class="success">导入成功：${result.message}</p>`;
+                if (result.errors && result.errors.length > 0) {
+                    resultDiv.innerHTML += `<p class="warning">部分错误：${result.errors.join(', ')}</p>`;
+                }
+                setTimeout(() => {
+                    closeImportModal();
+                    loadData();
+                }, 1500);
+            } else {
+                resultDiv.innerHTML = `<p class="error">导入失败：${result.message}</p>`;
+            }
+        });
+    });
+
+    // 导出
+    function exportData() {
+        window.location.href = `/api/export/${currentType}`;
+    }
+
+    // 初始化
+    loadData();
+</script>
+{% endblock %}
