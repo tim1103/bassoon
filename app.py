@@ -9,6 +9,7 @@ from datetime import datetime
 
 from config import Config
 from models.data_manager import DataManager
+from models.persistence import ServicePersistence
 from services.selection_service import SelectionService
 from services.scheduling_service import SchedulingService
 from utils.excel_handler import ExcelHandler
@@ -16,10 +17,16 @@ from utils.excel_handler import ExcelHandler
 app = Flask(__name__)
 app.config.from_object(Config)
 
+# 初始化日志系统
+from utils.error_handler import setup_logging, register_error_handlers
+logger = setup_logging(app)
+register_error_handlers(app)
+
 # 初始化服务
 data_manager = DataManager()
-selection_service = SelectionService(data_manager)
-scheduling_service = SchedulingService(data_manager)
+persistence = ServicePersistence(Config.DATA_DIR)
+selection_service = SelectionService(data_manager, persistence)
+scheduling_service = SchedulingService(data_manager, persistence)
 excel_handler = ExcelHandler()
 
 
@@ -275,7 +282,9 @@ def get_scheduling_schemes():
 def get_schedule_detail(scheme_id):
     """获取排课方案详情"""
     scheme = scheduling_service.get_scheme_detail(scheme_id)
-    return jsonify({'success': True, 'data': scheme})
+    if scheme:
+        return jsonify({'success': True, 'data': scheme})
+    return jsonify({'success': False, 'message': '方案不存在'}), 404
 
 
 @app.route('/api/scheduling/timetable')

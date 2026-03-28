@@ -12,3 +12,9 @@ openpyxl>=3.0.0
 # 数据处理
 numpy>=1.20.0
 python-dateutil>=2.8.0
+
+# 数据验证
+marshmallow>=3.14.0
+
+# 日志
+python-json-logger>=2.0.0

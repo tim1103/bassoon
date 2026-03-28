@@ -1,0 +1,9 @@
+[
+  {
+    "id": 999,
+    "name": "测试排课方案",
+    "schedule": {},
+    "fitness": 100,
+    "status": "generated"
+  }
+]
