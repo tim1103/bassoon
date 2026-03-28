@@ -16,6 +16,7 @@
         <button class="btn btn-primary" onclick="showAddModal()">新增</button>
         <button class="btn btn-success" onclick="showImportModal()">导入 Excel</button>
         <button class="btn btn-info" onclick="exportData()">导出 Excel</button>
+        <button class="btn btn-warning" onclick="showTestDataModal()">生成测试数据</button>
     </div>
 
     <div class="data-table-container">
@@ -59,6 +60,34 @@
             </div>
         </form>
         <div id="import-result"></div>
+    </div>
+</div>
+
+<!-- 生成测试数据模态框 -->
+<div id="test-data-modal" class="modal">
+    <div class="modal-content">
+        <span class="close" onclick="closeTestDataModal()">&times;</span>
+        <h2>生成测试数据</h2>
+        <form id="test-data-form">
+            <div class="form-group">
+                <label>目标学生总数：</label>
+                <input type="number" id="target-students" value="3000" min="1" max="10000">
+            </div>
+            <div class="form-group">
+                <label>目标班级总数：</label>
+                <input type="number" id="target-classes" value="60" min="1" max="200">
+            </div>
+            <div class="form-group">
+                <label>
+                    <input type="checkbox" id="clear-existing"> 清空现有学生和班级数据
+                </label>
+            </div>
+            <div class="form-actions">
+                <button type="submit" class="btn btn-primary">开始生成</button>
+                <button type="button" class="btn" onclick="closeTestDataModal()">取消</button>
+            </div>
+        </form>
+        <div id="test-data-result"></div>
     </div>
 </div>
 
@@ -296,6 +325,62 @@
     function exportData() {
         window.location.href = `/api/export/${currentType}`;
     }
+
+    // 生成测试数据
+    function showTestDataModal() {
+        document.getElementById('test-data-modal').style.display = 'block';
+    }
+
+    function closeTestDataModal() {
+        document.getElementById('test-data-modal').style.display = 'none';
+        document.getElementById('test-data-result').innerHTML = '';
+    }
+
+    document.getElementById('test-data-form').addEventListener('submit', (e) => {
+        e.preventDefault();
+        
+        const submitBtn = e.target.querySelector('button[type="submit"]');
+        const originalText = submitBtn.textContent;
+        submitBtn.disabled = true;
+        submitBtn.textContent = '生成中...';
+        
+        const config = {
+            students: parseInt(document.getElementById('target-students').value),
+            classes: parseInt(document.getElementById('target-classes').value),
+            clear_existing: document.getElementById('clear-existing').checked
+        };
+        
+        fetch('/api/test-data/generate', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify(config)
+        })
+        .then(response => response.json())
+        .then(result => {
+            const resultDiv = document.getElementById('test-data-result');
+            if (result.success) {
+                resultDiv.innerHTML = `
+                    <p class="success">${result.message}</p>
+                    <p>当前总学生数：${result.data.total_students}</p>
+                    <p>当前总班级数：${result.data.total_classes}</p>
+                `;
+                setTimeout(() => {
+                    closeTestDataModal();
+                    loadData();
+                }, 2000);
+            } else {
+                resultDiv.innerHTML = `<p class="error">生成失败：${result.message}</p>`;
+            }
+        })
+        .catch(error => {
+            document.getElementById('test-data-result').innerHTML = 
+                `<p class="error">请求失败：${error.message}</p>`;
+        })
+        .finally(() => {
+            submitBtn.disabled = false;
+            submitBtn.textContent = originalText;
+        });
+    });
 
     // 初始化
     loadData();

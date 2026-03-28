@@ -13,6 +13,7 @@ from models.persistence import ServicePersistence
 from services.selection_service import SelectionService
 from services.scheduling_service import SchedulingService
 from utils.excel_handler import ExcelHandler
+from utils.test_data_generator import TestDataGenerator
 
 app = Flask(__name__)
 app.config.from_object(Config)
@@ -28,6 +29,7 @@ persistence = ServicePersistence(Config.DATA_DIR)
 selection_service = SelectionService(data_manager, persistence)
 scheduling_service = SchedulingService(data_manager, persistence)
 excel_handler = ExcelHandler()
+test_data_generator = TestDataGenerator()
 
 
 @app.route('/')
@@ -311,6 +313,90 @@ def get_selection_stats():
     """获取选课统计"""
     stats = selection_service.get_statistics()
     return jsonify({'success': True, 'data': stats})
+
+
+# ==================== 测试数据生成 ====================
+
+@app.route('/api/test-data/generate', methods=['POST'])
+def generate_test_data():
+    """生成测试数据（学生和班级）"""
+    config = request.json or {}
+    
+    total_students = config.get('students', 3000)
+    total_classes = config.get('classes', 60)
+    clear_existing = config.get('clear_existing', False)
+    
+    try:
+        # 如果需要清空现有数据
+        if clear_existing:
+            data_manager._cache['students'] = []
+            data_manager._cache['classes'] = []
+            data_manager._save_data('students')
+            data_manager._save_data('classes')
+        
+        # 获取现有数据
+        existing_classes = data_manager.get_all('classes')
+        existing_students = data_manager.get_all('students')
+        
+        # 生成新数据
+        result = test_data_generator.generate_with_existing_data(
+            existing_classes=existing_classes,
+            existing_students=existing_students,
+            target_students=total_students,
+            target_classes=total_classes
+        )
+        
+        # 批量添加班级
+        classes_added = 0
+        if result['classes']:
+            class_result = data_manager.batch_add('classes', result['classes'])
+            classes_added = class_result.get('count', 0)
+        
+        # 批量添加学生
+        students_added = 0
+        if result['students']:
+            student_result = data_manager.batch_add('students', result['students'])
+            students_added = student_result.get('count', 0)
+        
+        # 更新班级的学生人数
+        all_classes = data_manager.get_all('classes')
+        for cls in all_classes:
+            class_name = cls.get('name')
+            if class_name:
+                count = len([s for s in data_manager.get_all('students') if s.get('admin_class') == class_name])
+                cls['student_count'] = count
+        
+        data_manager._save_data('classes')
+        
+        return jsonify({
+            'success': True,
+            'message': f'成功生成 {students_added} 名学生和 {classes_added} 个班级',
+            'data': {
+                'students_added': students_added,
+                'classes_added': classes_added,
+                'total_students': len(data_manager.get_all('students')),
+                'total_classes': len(data_manager.get_all('classes'))
+            }
+        })
+    except Exception as e:
+        return jsonify({'success': False, 'message': str(e)})
+
+
+@app.route('/api/test-data/clear', methods=['POST'])
+def clear_test_data():
+    """清空测试数据（学生和班级）"""
+    try:
+        data_manager._cache['students'] = []
+        data_manager._cache['classes'] = []
+        data_manager._save_data('students')
+        data_manager._save_data('classes')
+        
+        return jsonify({
+            'success': True,
+            'message': '已清空所有学生和班级数据'
+        })
+    except Exception as e:
+        return jsonify({'success': False, 'message': str(e)})
 
 
 if __name__ == '__main__':
